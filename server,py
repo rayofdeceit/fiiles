@@ -1,0 +1,53 @@
+import socket
+import pickle
+import cv2
+import numpy as np
+import struct
+import subprocess
+import pyautogui  # Ensure this is imported
+
+# Setup socket for TCP connection
+local_ip = '0.0.0.0'  # Listen on all interfaces
+local_port = 12345
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.bind((local_ip, local_port))
+sock.listen(1)
+print("Server listening for connection...")
+conn, addr = sock.accept()
+print(f"Connected to {addr}")
+
+while True:
+    try:
+        # Receive request from client
+        data = conn.recv(1024)
+        
+        if data == b"capture":
+            # Capture screenshot using the command line
+            screenshot_file = 'image.png'
+            subprocess.run(['screencapture', screenshot_file])
+
+            # Read the captured image
+            screenshot = cv2.imread(screenshot_file)
+            screenshot_bgr = cv2.cvtColor(screenshot, cv2.COLOR_RGB2BGR)
+            _, img_encoded = cv2.imencode('.jpg', screenshot_bgr)
+            img_data = img_encoded.tobytes()
+            
+            # Send image size first
+            img_size = len(img_data)
+            conn.sendall(struct.pack('>Q', img_size))
+            
+            # Then send the image data
+            conn.sendall(img_data)
+
+        else:
+            # If data isn't "capture," interpret it as coordinates for click
+            coordinates = pickle.loads(data)
+            print(f"Executing click at: {coordinates}")
+            pyautogui.click(coordinates)  # Indented correctly
+
+    except Exception as e:
+        print(f"Error: {e}")
+        break
+
+conn.close()
+sock.close()
